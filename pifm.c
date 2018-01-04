@@ -24,6 +24,9 @@
 
 #define PAGE_SIZE (4*1024)
 #define BLOCK_SIZE (4*1024)
+#define BCM2708_PERI_BASE        0x20000000
+//#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
+#define GPIO_BASE_OFFSET           0x200000
 
 #define PI 3.14159265
 
@@ -99,6 +102,25 @@ void freeRealMemPage(void* vAddr) {
 void setup_fm()
 {
 
+   uint32_t peri_base = BCM2708_PERI_BASE; /* default if device tree not found */
+   uint32_t gpio_base;
+   FILE* fp;
+
+   /* for RPi2, get peri-base from device tree */
+   if ((fp = fopen("/proc/device-tree/soc/ranges", "rb")) != NULL)
+   {
+      unsigned char buf[4];
+
+      fseek(fp, 4, SEEK_SET);
+      if (fread(buf, 1, sizeof(buf), fp) == sizeof(buf))
+      {
+         peri_base = buf[0]<<24 | buf[1]<<16 | buf[2]<<8 | buf[3];
+      }
+      fclose(fp);
+   }
+
+   gpio_base = peri_base + GPIO_BASE_OFFSET;
+    
     /* open /dev/mem */
     if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
         printf("can't open /dev/mem \n");
@@ -107,11 +129,11 @@ void setup_fm()
     
     allof7e = (unsigned *)mmap(
                   NULL,
-                  0x01000000,  //len
+                  BLOCK_SIZE,  //len
                   PROT_READ|PROT_WRITE,
                   MAP_SHARED,
                   mem_fd,
-                  0x20000000  //base
+                  gpio_base  //base
               );
 
     if ((int)allof7e==-1) exit(-1);
